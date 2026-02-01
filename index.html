@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CS 1.6 Browser Edition</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Orbitron', sans-serif; background-color: #050505; color: white; overflow: hidden; }
+    .neon-text { text-shadow: 0 0 10px #00ff00, 0 0 20px #00ff00; }
+    .glass-panel { background: rgba(20, 20, 20, 0.8); backdrop-filter: blur(10px); border: 1px solid #333; }
+    .map-thumb { transition: transform 0.3s; cursor: pointer; border: 2px solid transparent; }
+    .map-thumb:hover { transform: scale(1.05); border-color: #00ff00; box-shadow: 0 0 15px #00ff00; }
+    .map-selected { border-color: #00ff00; box-shadow: 0 0 15px #00ff00; transform: scale(1.05); }
+    /* Ocultar scrollbar */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #111; }
+    ::-webkit-scrollbar-thumb { background: #00ff00; border-radius: 4px; }
+  </style>
+</head>
+<body class="bg-[url('https://raw.githubusercontent.com/yohimik/webxash3d-fwgs/master/extras/background.jpg')] bg-cover bg-center">
+  
+  <!-- LOBBY UI -->
+  <div id="lobby" class="fixed inset-0 flex items-center justify-center bg-black/80 z-50 transition-opacity duration-500">
+    <div class="glass-panel p-8 rounded-2xl shadow-2xl w-full max-w-4xl border-t-4 border-green-500 relative overflow-hidden">
+      <!-- Decoración fondo -->
+      <div class="absolute top-0 right-0 w-64 h-64 bg-green-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+
+      <h1 class="text-5xl font-black text-center mb-2 italic tracking-tighter text-white">
+        COUNTER<span class="text-green-500 neon-text">-STRIKE</span> <span class="text-2xl not-italic text-gray-400">1.6 WEB</span>
+      </h1>
+      <p class="text-center text-gray-400 mb-8 text-sm">BROWSER EDITION • WASM PORT</p>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        
+        <!-- COLUMNA IZQUIERDA: CONFIG -->
+        <div class="space-y-6">
+          <!-- Slider Bots -->
+          <div class="bg-black/40 p-4 rounded-lg border border-gray-700">
+            <div class="flex justify-between mb-2">
+              <label class="text-green-400 font-bold">CANTIDAD DE BOTS</label>
+              <span id="botsDisplay" class="text-white font-mono text-xl">8</span>
+            </div>
+            <input type="range" id="botsSlider" min="0" max="16" value="8" 
+                   class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-green-500">
+            <p class="text-xs text-gray-500 mt-2">Recomendado: 4-8 para máximo FPS en Pentium.</p>
+          </div>
+
+          <!-- Info Mapa -->
+          <div class="bg-black/40 p-4 rounded-lg border border-gray-700 h-32 flex flex-col justify-center items-center text-center">
+            <span class="text-gray-400 text-xs uppercase tracking-widest mb-1">MAPA SELECCIONADO</span>
+            <span id="selectedMapName" class="text-3xl font-bold text-white neon-text">de_dust2</span>
+          </div>
+
+          <!-- Botón JUGAR -->
+          <button onclick="startGame()" 
+                  class="w-full bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-black font-black text-2xl py-4 rounded-xl shadow-[0_0_20px_rgba(0,255,0,0.4)] transition-all transform hover:scale-[1.02] active:scale-95">
+            INICIAR PARTIDA
+          </button>
+        </div>
+
+        <!-- COLUMNA DERECHA: SELECTOR MAPAS -->
+        <div class="bg-black/40 p-4 rounded-lg border border-gray-700">
+          <label class="text-green-400 font-bold mb-4 block">SELECCIONAR MAPA</label>
+          <div class="grid grid-cols-3 gap-3 max-h-[300px] overflow-y-auto p-1" id="mapGrid">
+            <!-- Los mapas se generan con JS abajo -->
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-6 text-center text-xs text-gray-600 font-mono">
+        Hosteado en Vercel • Engine Xash3D-FWGS
+      </div>
+    </div>
+  </div>
+
+  <!-- CANVAS JUEGO -->
+  <canvas id="canvas" class="fixed inset-0 w-full h-full hidden outline-none cursor-none bg-black" oncontextmenu="event.preventDefault()"></canvas>
+  <div id="status" class="fixed bottom-4 left-4 text-green-500 font-mono text-sm hidden z-40">Cargando motor...</div>
+
+  <script>
+    // --- CONFIGURACIÓN ---
+    const maps = [
+      { id: 'de_dust2', img: 'https://raw.githubusercontent.com/yohimik/webxash3d-fwgs/master/extras/maps/de_dust2.jpg' },
+      { id: 'de_inferno', img: 'https://raw.githubusercontent.com/yohimik/webxash3d-fwgs/master/extras/maps/de_inferno.jpg' },
+      { id: 'de_nuke', img: 'https://raw.githubusercontent.com/yohimik/webxash3d-fwgs/master/extras/maps/de_nuke.jpg' },
+      { id: 'cs_assault', img: 'https://raw.githubusercontent.com/yohimik/webxash3d-fwgs/master/extras/maps/cs_assault.jpg' },
+      { id: 'cs_italy', img: 'https://raw.githubusercontent.com/yohimik/webxash3d-fwgs/master/extras/maps/cs_italy.jpg' },
+      { id: 'cs_office', img: 'https://raw.githubusercontent.com/yohimik/webxash3d-fwgs/master/extras/maps/cs_office.jpg' },
+      { id: 'de_aztec', img: 'https://raw.githubusercontent.com/yohimik/webxash3d-fwgs/master/extras/maps/de_aztec.jpg' },
+      { id: 'de_train', img: 'https://raw.githubusercontent.com/yohimik/webxash3d-fwgs/master/extras/maps/de_train.jpg' }
+    ];
+
+    let currentMap = 'de_dust2';
+    const slider = document.getElementById('botsSlider');
+    const display = document.getElementById('botsDisplay');
+
+    // Inicializar UI
+    slider.addEventListener('input', (e) => display.innerText = e.target.value);
+    
+    const mapGrid = document.getElementById('mapGrid');
+    maps.forEach(map => {
+      const div = document.createElement('div');
+      div.className = `map-thumb relative aspect-video bg-gray-800 rounded overflow-hidden ${map.id === currentMap ? 'map-selected' : ''}`;
+      div.innerHTML = `<img src="${map.img}" class="w-full h-full object-cover opacity-80 hover:opacity-100"><div class="absolute bottom-0 w-full bg-black/60 text-white text-[10px] text-center py-1 font-bold">${map.id}</div>`;
+      div.onclick = () => selectMap(map.id, div);
+      mapGrid.appendChild(div);
+    });
+
+    function selectMap(mapId, element) {
+      currentMap = mapId;
+      document.getElementById('selectedMapName').innerText = mapId;
+      document.querySelectorAll('.map-thumb').forEach(el => el.classList.remove('map-selected'));
+      element.classList.add('map-selected');
+    }
+
+    async function startGame() {
+      const bots = slider.value;
+      
+      // UI Transition
+      document.getElementById('lobby').style.opacity = '0';
+      setTimeout(() => document.getElementById('lobby').style.display = 'none', 500);
+      document.getElementById('canvas').classList.remove('hidden');
+      document.getElementById('status').classList.remove('hidden');
+
+      // Cargar Engine Xash3D desde CDN (para no subir JS complejo)
+      const { Xash3D } = await import('https://cdn.jsdelivr.net/gh/yohimik/webxash3d-fwgs@master/xash3d-fwgs.js');
+
+      // Configuración del juego
+      const game = new Xash3D({
+        canvas: document.getElementById('canvas'),
+        status: (text) => document.getElementById('status').innerText = text,
+        args: ['-game', 'cstrike', '+map', currentMap, '+maxplayers', '32'],
+        // Aquí indicamos que busque los archivos en TU carpeta /public (que será root en Vercel)
+        locateFile: (file) => file 
+      });
+
+      game.init().then(() => {
+        // Comandos al iniciar: añadir bots
+        setTimeout(() => {
+            // Truco para meter bots (command flooding simple)
+            for(let i=0; i<bots; i++) {
+                game.exec('bot_add'); 
+            }
+            game.exec('bot_quota ' + bots);
+            game.exec('bot_difficulty 1');
+        }, 5000); // Esperar a que cargue el mapa
+      });
+    }
+  </script>
+</body>
+</html>
